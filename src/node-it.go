@@ -8,15 +8,19 @@ import (
 	"bytes"
 )
 
-var MagicString = []byte("node-it savefile v00\n")
+var MagicString = []byte("node-it savefile v01\n")
 
 func main() {
 	load()
-	graph.Failed = append(graph.Failed, "gaming")
+	
+	//initial seeding
+	//graph.Failed = append(graph.Failed, "gaming")
+	
 	fmt.Println("starting")
 	graph.Start()
 	fmt.Println("finished run, saving data")
 	save()
+	fmt.Println("exiting happily.")
 }
 
 func save() {
@@ -31,15 +35,19 @@ func save() {
 	
 	err = enc.Encode(graph.Subs)
 	if err != nil {
-		fmt.Println("Error saving subs:")
+		fmt.Println("Error saving subs:",err)
 	}
 	err = enc.Encode(graph.Links)
 	if err != nil {
-		fmt.Println("Error saving links:")
+		fmt.Println("Error saving links:",err)
 	}
 	err = enc.Encode(graph.Failed)
 	if err != nil {
-		fmt.Println("Error saving failed:")
+		fmt.Println("Error saving failed:",err)
+	}
+	err = enc.Encode(graph.Read)
+	if err != nil {
+		fmt.Println("Error saving read:",err)
 	}
 }
 
@@ -69,5 +77,9 @@ func load() {
 	err = enc.Decode(&graph.Failed)
 	if err != nil {
 		fmt.Println("Error loading failed:",err)
+	}
+	err = enc.Decode(&graph.Read)
+	if err != nil {
+		fmt.Println("Error loading read:",err)
 	}
 }

@@ -17,37 +17,41 @@ var urlRegex = regexp.MustCompile(`\(http(s)?://(www\.)?reddit.com/r/([\w]+)(/)?
 var numReaders = 1
 const queueSize = 256
 
-var allInQueue map[string]bool
-
 var queue chan string
-var allQueueChan chan map[string]bool
+var readSetChan chan map[string]bool
 var numRequestsChan chan int
 var failed chan string
-var subChan chan Sub
 var linkChan chan Link
+var subScriberChan chan subScribers
 var finish chan bool
 var stop chan bool
 var idle chan int
 
+type subScribers struct {
+	name string
+	num int64
+}
+
 func init() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
-
+	structInit()
+	
 	client = &http.Client{}
 	
-	allInQueue = make(map[string]bool)
-	allQueueChan = make(chan map[string]bool, 1)
-	allQueueChan <- allInQueue
+	readSetChan = make(chan map[string]bool, 1)
+	readSetChan <- Read
 	
 	numRequestsChan = make(chan int, 1)
-	numRequestsChan <- 30
+	numRequestsChan <- 4
+	
+	subScriberChan = make(chan subScribers, queueSize)
 	
 	queue = make(chan string, queueSize)
 	failed = make(chan string, queueSize)
-	subChan = make(chan Sub, queueSize)
 	linkChan = make(chan Link, queueSize*2)
 	finish = make(chan bool)
 	stop = make(chan bool)
-	idle = make(chan int, numReaders)
+	idle = make(chan int, numReaders-1)
 }
 
 func read(r string) {
@@ -81,50 +85,48 @@ func read(r string) {
 		failed <- r
 		return
 	}
-	fmt.Println()
 	//fmt.Println("parsed:")
 	//fmt.Println(js)
-	info := js.(map[string]interface{})
-	sub := &Sub{Name: r}
-	
+	info := js.(map[string]interface{})	
 	//now find links
-	for k, v := range info {
+	for _, v := range info {
 		switch v.(type) {
 			case map[string]interface{}:
-				sub.parse(r, v.(map[string]interface{}))
+				parse(r, v.(map[string]interface{}))
 			default:
-				fmt.Println("ignoring key",k)
+				//fmt.Println("ignoring key", k, "in", r)
 		}
 	}
-	fmt.Println(sub)
+	fmt.Println()
 }
 
-func (sub *Sub) parse(from string, data map[string]interface{}) {
+func parse(from string, data map[string]interface{}) {
 	for k, v := range data {
 		switch k {
 			case "description":
-				sub.parseDesc(from, v.(string))
+				parseDesc(from, v.(string))
 			case "subscribers":
-				sub.Subscribers = int64(v.(float64))
+				subScriberChan <- subScribers{name: from,
+					num: int64(v.(float64))}
 			default:
-				fmt.Println("ignoring key",k)
+				//fmt.Println("ignoring key", k, "in", from)
 		}
 	}
 }
 
-func (sub *Sub) parseDesc(from, d string) {
-	fmt.Println("description:",d)
+func parseDesc(from, d string) {
+	//fmt.Println("description:",d)
 	all := urlRegex.FindAllStringSubmatch(d,-1)
 	for _, l := range all {
 		to := l[3]
 		
 		// if not queried yet, try.
-		m := <- allQueueChan
+		m := <- readSetChan
 		if !m[to] {
 			m[to] = true
 			queue <- to
 		}
-		allQueueChan <- m
+		readSetChan <- m
 		
 		linkChan <- Link{From: from, To: to}
 		fmt.Println("from", from, "to", to)
@@ -134,8 +136,6 @@ func (sub *Sub) parseDesc(from, d string) {
 func reader() {
 	for on, wasIdle := true, false; on; {
 		select {
-			case <- stop:
-				on = false
 			case r := <- queue:
 				if wasIdle {
 					<- idle
@@ -155,11 +155,8 @@ func reader() {
 				wasIdle = true
 				fmt.Println("reader idle")
 			default:
-				// this should only happen when the queue is empty and idle is full
-				on = false
-				select {
-					case stop <- true:
-					default:
+				if !wasIdle {
+					on = false
 				}
 				
 		}
@@ -172,12 +169,27 @@ func linker(linkerStop chan bool, linkerFin chan bool) {
 	for on := true; on; {
 		// linker runs as long if there are things in queue
 		select {
-			case sub := <- subChan:
-				Subs[sub.Name] = &sub
 			case link := <- linkChan:
-				Subs[link.From].Out++
-				Subs[link.To].In++
-				Links[link] = true
+				from, ok := Subs[link.From]
+				if !ok {
+					from = &Sub{Name: link.From}
+					Subs[link.From] = from
+				}
+				to, ok := Subs[link.To]
+				if !ok {
+					to = &Sub{Name: link.To}
+					Subs[link.To] = to
+				}
+				from.Out++
+				to.In++
+				Links = append(Links, link)
+			case s := <- subScriberChan:
+				sub, ok := Subs[s.name]
+				if !ok {
+					sub = &Sub{Name: s.name}
+					Subs[s.name] = sub
+				}
+				sub.Subscribers = s.num
 			case <- linkerStop:
 				readyToStop = true
 			default:
@@ -192,13 +204,12 @@ func linker(linkerStop chan bool, linkerFin chan bool) {
 
 func Start() {
 	fmt.Println("putting stuff")
-	// append from failed to queue until the queue is full
-	i := len(failed)
-	for num := 0; i > 0 && num <= queueSize; i, num = i-1, num-1 {
-		queue <- Failed[i]
+	
+	//put stuff into the queue
+	for ; len(queue) < queueSize && len(Failed) > 0; {
+		queue <- Failed[len(Failed)-1]
+		Failed = Failed[:len(Failed)-1]
 	}
-	// re-slice Failed
-	Failed = Failed[:i]
 
 	fmt.Println("starting readers")
 	for i := 0; i < numReaders;i++ {
@@ -228,5 +239,17 @@ func Start() {
 	fmt.Println("waiting for linker")
 	<- linkerFin
 	//finished.
-	fmt.Println("reading finished")
+	fmt.Println("reading finished, draining queue")
+	// drain queue
+	for ;len(queue)>0; {
+		Failed = append(Failed, <- queue)
+	}
+	fmt.Print("ToDo:")
+	// remove queue from read
+	for _, s := range Failed {
+		delete(Read, s)
+		fmt.Printf("%s ",s)
+	}
+	fmt.Println()
+	
 }
