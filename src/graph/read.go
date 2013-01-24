@@ -7,14 +7,16 @@ import (
 	"fmt"
 	"runtime"
 	"regexp"
+	"strings"
 )
 
-var version = "0.1a"
+var version = "0.2a"
 var baseUrl = "http://reddit.com/"
 var client *http.Client
 var urlRegex = regexp.MustCompile(`\(http(s)?://(www\.)?reddit.com/r/([\w]+)(/)?\)`)
 
 var numReaders = 1
+const numRequests = 30
 const queueSize = 256
 
 var queue chan string
@@ -42,7 +44,7 @@ func init() {
 	readSetChan <- Read
 	
 	numRequestsChan = make(chan int, 1)
-	numRequestsChan <- 4
+	numRequestsChan <- numRequests
 	
 	subScriberChan = make(chan subScribers, queueSize)
 	
@@ -55,6 +57,7 @@ func init() {
 }
 
 func read(r string) {
+	r = strings.ToLower(r)
 	req, err := http.NewRequest("GET", baseUrl+"/r/"+r+"/about.json", nil)
 	if err != nil {
 		fmt.Println("Error", err);
@@ -118,7 +121,7 @@ func parseDesc(from, d string) {
 	//fmt.Println("description:",d)
 	all := urlRegex.FindAllStringSubmatch(d,-1)
 	for _, l := range all {
-		to := l[3]
+		to := strings.ToLower(l[3])
 		
 		// if not queried yet, try.
 		m := <- readSetChan

@@ -12,15 +12,18 @@ var MagicString = []byte("node-it savefile v01\n")
 
 func main() {
 	load()
-	
+	read()
+	graph.MakeGraph()
+	fmt.Println("exiting happily.")
+}
+
+func read() {
+	fmt.Println("starting")
 	//initial seeding
 	//graph.Failed = append(graph.Failed, "gaming")
-	
-	fmt.Println("starting")
 	graph.Start()
 	fmt.Println("finished run, saving data")
 	save()
-	fmt.Println("exiting happily.")
 }
 
 func save() {
@@ -45,6 +48,7 @@ func save() {
 	if err != nil {
 		fmt.Println("Error saving failed:",err)
 	}
+	
 	err = enc.Encode(graph.Read)
 	if err != nil {
 		fmt.Println("Error saving read:",err)
