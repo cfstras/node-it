@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+const engine = "fdp"
+
 func MakeGraph() {
 	if makeFile() {
 		runGV()
@@ -22,9 +24,9 @@ func makeFile() bool {
 	}
 	defer file.Close()
 	
-	file.WriteString("digraph G {\n")
-	file.WriteString("graph [splines=spline, overlap=false, fontname=\"Myriad Pro\", dpi=120, size=30, ")
-	file.WriteString("ratio=1.6, orientation=landscape]\n")
+	file.WriteString("digraph {\n")
+	file.WriteString("graph [splines=true, overlap=prism, dpi=120, size=30, ")
+	file.WriteString("ratio=0.6, K=0.6]\n")
 	file.WriteString("node [fillcolor=\"#eeeeee\", color=\"#aaaaaa\", style=filled, shape=box]\n")
 	for _, r := range Links {
 		file.WriteString("\""+r.From+"\" -> \""+r.To+"\";\n")
@@ -34,14 +36,14 @@ func makeFile() bool {
 }
 
 func runGV() {
-	fmt.Println("Running sfdp")
+	fmt.Println("Running",engine)
 	start := time.Now()
-	cmd := exec.Command("sfdp","-o","graph.png","-Tpng","graph.dot")
+	cmd := exec.Command(engine,"-K"+engine,"-o","graph.png","-Tpng","graph.dot")
 	st, err := cmd.CombinedOutput()
 	if err != nil {
 		fmt.Println("Error while running sfdp: ", err)
 	}
 	fmt.Println(string(st))
 	fmt.Println("time: ", time.Since(start))
-	fmt.Println("sfdp finished.")
+	fmt.Println(engine,"finished.")
 }
