@@ -25,9 +25,9 @@ func makeFile() bool {
 	defer file.Close()
 
 	file.WriteString("digraph {\n")
-	file.WriteString("graph [splines=true, overlap=prism, dpi=120, size=30, ")
-	file.WriteString("ratio=0.6, K=0.6]\n")
-	file.WriteString("node [fillcolor=\"#eeeeee\", color=\"#aaaaaa\", style=filled, shape=box]\n")
+	file.WriteString("graph [bgcolor="#eeeeee", overlap=prism, dpi=120, size=30, ")
+	file.WriteString("ratio=0.6, outputorder=edgesfirst]\n")
+	file.WriteString("node [fillcolor=\"#eeeeeecc\", color=\"#ffffff\", style=filled, shape=box]\n")
 	for _, r := range Links {
 		file.WriteString("\"" + r.From + "\" -> \"" + r.To + "\";\n")
 	}
