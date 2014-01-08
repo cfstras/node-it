@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-const engine = "fdp"
+const engine = "sfdp"
 
 func MakeGraph() {
 	if makeFile() {
@@ -25,7 +25,7 @@ func makeFile() bool {
 	defer file.Close()
 
 	file.WriteString("digraph {\n")
-	file.WriteString("graph [bgcolor="#eeeeee", overlap=prism, dpi=120, size=30, ")
+	file.WriteString(`graph [bgcolor="#eeeeee", overlap=prism, dpi=120, size=30, `)
 	file.WriteString("ratio=0.6, outputorder=edgesfirst]\n")
 	file.WriteString("node [fillcolor=\"#eeeeeecc\", color=\"#ffffff\", style=filled, shape=box]\n")
 	for _, r := range Links {
@@ -38,7 +38,7 @@ func makeFile() bool {
 func runGV() {
 	fmt.Println("Running", engine)
 	start := time.Now()
-	cmd := exec.Command(engine, "-K"+engine, "-o", "graph.png", "-Tpng", "graph.dot")
+	cmd := exec.Command(engine, "-K"+engine, "-o", "graph.svg", "-Tsvg", "graph.dot")
 	st, err := cmd.CombinedOutput()
 	if err != nil {
 		fmt.Println("Error while running sfdp: ", err)

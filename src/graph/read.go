@@ -6,14 +6,13 @@ import (
 	"io/ioutil"
 	"net/http"
 	"regexp"
-	"runtime"
 	"strings"
 )
 
-var version = "0.2a"
+var version = "0.3a"
 var baseUrl = "http://reddit.com/"
 var client *http.Client
-var urlRegex = regexp.MustCompile(`\(http(s)?://(www\.)?reddit.com/r/([\w]+)(/)?\)`)
+var urlRegex = regexp.MustCompile(`(http(s)?://(www\.)?reddit.com)?/r/([\w]+)(/)?`)
 
 var numReaders = 1
 
@@ -36,7 +35,7 @@ type subScribers struct {
 }
 
 func init() {
-	runtime.GOMAXPROCS(runtime.NumCPU())
+	//runtime.GOMAXPROCS(runtime.NumCPU())
 	structInit()
 
 	client = &http.Client{}
@@ -59,7 +58,7 @@ func init() {
 
 func read(r string) {
 	r = strings.ToLower(r)
-	req, err := http.NewRequest("GET", baseUrl+"/r/"+r+"/about.json", nil)
+	req, err := http.NewRequest("GET", baseUrl+"r/"+r+"/about.json", nil)
 	if err != nil {
 		fmt.Println("Error", err)
 		failed <- r
@@ -74,14 +73,15 @@ func read(r string) {
 		return
 	}
 	defer resp.Body.Close()
+	fmt.Println(resp.Header)
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		fmt.Println("Error", err)
 		failed <- r
 		return
 	}
+	fmt.Println("got answer")
 	//fmt.Println("raw:", string(body))
-
 	var js interface{}
 	err = json.Unmarshal(body, &js)
 	if err != nil {
@@ -122,7 +122,7 @@ func parseDesc(from, d string) {
 	//fmt.Println("description:",d)
 	all := urlRegex.FindAllStringSubmatch(d, -1)
 	for _, l := range all {
-		to := strings.ToLower(l[3])
+		to := strings.ToLower(l[4])
 
 		// if not queried yet, try.
 		m := <-readSetChan
@@ -152,7 +152,7 @@ func reader() {
 				fmt.Println("Out of requests, shutting down...")
 				failed <- r
 			} else {
-				fmt.Println("reader reading", r)
+				fmt.Print("reading ", r, "... ")
 				read(r)
 			}
 		case idle <- 1:
